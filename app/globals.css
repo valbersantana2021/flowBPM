@@ -1,0 +1,93 @@
+@import "tailwindcss";
+
+/* bpmn-js styles — required for the canvas to render correctly */
+@import "bpmn-js/dist/assets/diagram-js.css";
+@import "bpmn-js/dist/assets/bpmn-js.css";
+@import "bpmn-js/dist/assets/bpmn-font/css/bpmn-embedded.css";
+
+
+
+@layer base {
+  :root {
+    --bg:            #0A0C10;
+    --bg2:           #0F1218;
+    --bg3:           #151820;
+    --bg4:           #1C2030;
+    --border:        rgba(255,255,255,0.07);
+    --border2:       rgba(255,255,255,0.12);
+    --text:          #F0F2F8;
+    --text2:         #8A90A4;
+    --text3:         #555A6E;
+    --accent:        #4B7FFF;
+    --accent2:       #6B9FFF;
+    --accent-bg:     rgba(75,127,255,0.10);
+    --accent-border: rgba(75,127,255,0.25);
+    --green:         #3DD68C;
+    --green-bg:      rgba(61,214,140,0.10);
+    --amber:         #F5A623;
+    --amber-bg:      rgba(245,166,35,0.10);
+    --red:           #F56565;
+    --red-bg:        rgba(245,101,101,0.10);
+    --topbar-bg:     rgba(10,12,16,0.92);
+    --shadow:        0 1px 3px rgba(0,0,0,0.4), 0 0 0 0.5px rgba(255,255,255,0.04);
+    --shadow-lg:     0 8px 32px rgba(0,0,0,0.60);
+  }
+
+  :root.light,
+  [data-theme='light'] {
+    --bg:            #F5F6FA;
+    --bg2:           #FFFFFF;
+    --bg3:           #EEF0F6;
+    --bg4:           #E2E5EF;
+    --border:        rgba(0,0,0,0.07);
+    --border2:       rgba(0,0,0,0.13);
+    --text:          #0F1218;
+    --text2:         #5A6070;
+    --text3:         #9AA0B0;
+    --accent:        #3A6FEE;
+    --accent2:       #2458D8;
+    --accent-bg:     rgba(58,111,238,0.08);
+    --accent-border: rgba(58,111,238,0.22);
+    --green:         #1A9E5C;
+    --green-bg:      rgba(26,158,92,0.09);
+    --amber:         #C47D0A;
+    --amber-bg:      rgba(196,125,10,0.09);
+    --red:           #D94040;
+    --red-bg:        rgba(217,64,64,0.09);
+    --topbar-bg:     rgba(245,246,250,0.92);
+    --shadow:        0 1px 4px rgba(0,0,0,0.08), 0 0 0 0.5px rgba(0,0,0,0.04);
+    --shadow-lg:     0 8px 32px rgba(0,0,0,0.12);
+  }
+
+  body {
+    background-color: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Syne', sans-serif;
+  }
+
+  body,
+  .topbar,
+  .auth-card,
+  .feature-card,
+  .plan-card,
+  .diagram-card,
+  .settings-section,
+  .chat-panel,
+  .canvas-panel,
+  .editor-topbar {
+    transition: background 0.25s, border-color 0.25s, color 0.2s;
+  }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes bounce {
+  0%, 80%, 100% { transform: translateY(0); }
+  40%            { transform: translateY(-5px); }
+}
