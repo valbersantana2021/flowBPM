@@ -49,10 +49,12 @@ const BpmnCanvas = forwardRef<BpmnCanvasRef, BpmnCanvasProps>(
         }
         try {
           await modelerRef.current.importXML(xml)
-          // Small delay to let bpmn-js finish rendering before fitting
+          // Wait for bpmn-js to finish laying out elements before fitting viewport
           setTimeout(() => {
-            modelerRef.current?.get('canvas')?.zoom('fit-viewport')
-          }, 100)
+            requestAnimationFrame(() => {
+              modelerRef.current?.get('canvas')?.zoom('fit-viewport')
+            })
+          }, 300)
         } catch (err) {
           console.error('[BpmnCanvas] importXML error:', err)
           throw err

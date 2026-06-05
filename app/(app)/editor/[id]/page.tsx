@@ -70,10 +70,12 @@ export default function EditorPage() {
         setCurrentXml(xml)
         setPendingXml(null)
       } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Erro ao renderizar diagrama'
         console.error('[Editor] apply error:', err)
+        addMessage({ role: 'assistant', content: `⚠️ Não foi possível aplicar o diagrama: ${msg}. Tente gerar novamente.` })
       }
     },
-    [canvasReady, setCurrentXml]
+    [canvasReady, setCurrentXml, addMessage]
   )
 
   // Auto-apply any pending XML once the canvas becomes ready

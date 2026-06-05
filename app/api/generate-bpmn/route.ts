@@ -19,7 +19,30 @@ Tasks: task, userTask, serviceTask, sendTask, receiveTask, businessRuleTask, man
 Gateways: exclusiveGateway, parallelGateway, inclusiveGateway
 Events: startEvent, endEvent, intermediateThrowEvent, intermediateCatchEvent (timer/message)
 
-NÃO USE: pools, lanes
+PROIBIDO — NUNCA GERE ESSES ELEMENTOS (causam falha silenciosa):
+- collaboration, participant (= pools) — NUNCA use
+- lane, laneSet — NUNCA use
+- O processo DEVE ser um <bpmn2:process> standalone, SEM collaboration ou participant
+
+REGRAS DE LAYOUT (CRÍTICO — siga exatamente):
+- Fluxo HORIZONTAL da esquerda para a direita. NUNCA empilhe elementos verticalmente no caminho principal.
+- Eixo Y central fixo em y=240 para todos os elementos do caminho principal.
+- Tamanhos padrão: startEvent/endEvent = 36×36, task = 120×80, gateway = 50×50
+- Centro vertical: startEvent/endEvent em y=222, task em y=200, gateway em y=215
+- Espaçamento horizontal entre elementos: 60px entre o fim de um e o início do próximo
+- Fórmula de posicionamento (x cresce da esquerda para direita):
+    startEvent: x=150, y=222
+    1ª task:    x=246, y=200
+    1º gateway: x=426, y=215   (após task de 120px + 60px)
+    2ª task:    x=536, y=200   (após gateway de 50px + 60px — caminho principal continua na mesma linha)
+    endEvent:   x=716, y=222   (após task de 120px + 60px)
+- Quando um gateway cria desvio (caminho alternativo):
+    Caminho principal: continua horizontalmente no mesmo y=240
+    Caminho alternativo: vai para y=380 (abaixo) ou y=100 (acima), com tasks nessa linha
+    O caminho alternativo converge em outro gateway ou termina em endEvent separado
+- Waypoints das edges: conectam o centro-direito do elemento anterior ao centro-esquerdo do próximo
+    Ex: task em x=246,y=200 (120×80) → ponto de saída: x=366, y=240
+    Ex: gateway em x=426,y=215 (50×50) → ponto de entrada: x=426, y=240
 
 FORMATO DE RESPOSTA (JSON puro, sem markdown, sem backticks):
 {"xml": "<?xml version=\"1.0\"...>...</definitions>", "message": "Criado processo com..."}`
@@ -30,6 +53,55 @@ function cleanJson(raw: string): string {
     .replace(/^```(?:json)?\s*/i, '')
     .replace(/```\s*$/i, '')
     .trim()
+}
+
+// ─── Sanitize XML: remove collaboration/participant blocks that break bpmn-js ──
+function sanitizeBpmnXml(xml: string): string {
+  const hasCollaboration = /<[a-z0-9_:]*collaboration\b/i.test(xml)
+
+  let out = xml.replace(/<[^>]*:collaboration\b[\s\S]*?<\/[^>]*:collaboration>/gi, '')
+  out = out.replace(/<[^>]*:participant\b[^>]*\/>/gi, '')
+  out = out.replace(/<[^>]*:BPMNShape\b[^>]*bpmnElement="Participant_[^"]*"[\s\S]*?<\/[^>]*:BPMNShape>/gi, '')
+
+  // When collaboration was removed, BPMNPlane still references it → fix to process ID
+  if (hasCollaboration) {
+    const processMatch = out.match(/<[a-z0-9_:]*process\b[^>]*\bid="([^"]+)"/i)
+    if (processMatch) {
+      const processId = processMatch[1]
+      out = out.replace(
+        /(<[a-z0-9_:]*BPMNPlane\b[^>]*\bbpmnElement=")[^"]*"/i,
+        `$1${processId}"`
+      )
+    }
+  }
+
+  // Fix double-quote artifacts from Gemini: attribute="value"" → attribute="value"
+  out = out.replace(/(")\s*"/g, '"')
+
+  // Fix missing x= attribute in waypoints: <di:waypoint "246" → <di:waypoint x="246"
+  out = out.replace(/(<[a-z:]*waypoint\s+)"(\d+)"/gi, '$1x="$2"')
+
+  return out
+}
+
+// ─── Validate XML: throw if clearly malformed ─────────────────────────────────
+function validateBpmnXml(xml: string): void {
+  const trimmed = xml.trim()
+  // Must start with XML declaration or a root element
+  if (!trimmed.startsWith('<?xml') && !trimmed.startsWith('<bpmn')) {
+    throw new Error('XML inválido: não começa com declaração XML')
+  }
+  // Must contain a process and a BPMNDiagram
+  if (!/<[a-z0-9_:]*process\b/i.test(trimmed)) {
+    throw new Error('XML inválido: elemento process não encontrado')
+  }
+  if (!/<[a-z0-9_:]*BPMNDiagram\b/i.test(trimmed)) {
+    throw new Error('XML inválido: BPMNDiagram não encontrado')
+  }
+  // Must close properly with </definitions>
+  if (!/<\/[a-z0-9_:]*definitions\s*>/.test(trimmed)) {
+    throw new Error('XML inválido: tag </definitions> de fechamento não encontrada — XML truncado')
+  }
 }
 
 // ─── Gemini (Google AI Studio) ────────────────────────────────────────────────
@@ -268,18 +340,30 @@ export async function POST(req: Request) {
     }
 
     // Priority: Gemini → Anthropic → OpenAI → Mock
+    let result: { xml: string; message: string } | null = null
+
     if (process.env.GEMINI_API_KEY) {
-      const result = await callGemini(message, history, currentXml)
-      return NextResponse.json(result)
+      result = await callGemini(message, history, currentXml)
+    } else if (process.env.ANTHROPIC_API_KEY) {
+      result = await callAnthropic(message, history, currentXml)
+    } else if (process.env.OPENAI_API_KEY) {
+      result = await callOpenAI(message, history, currentXml)
     }
 
-    if (process.env.ANTHROPIC_API_KEY) {
-      const result = await callAnthropic(message, history, currentXml)
-      return NextResponse.json(result)
-    }
-
-    if (process.env.OPENAI_API_KEY) {
-      const result = await callOpenAI(message, history, currentXml)
+    if (result) {
+      result.xml = sanitizeBpmnXml(result.xml)
+      // Validate XML structure; retry once if malformed
+      try {
+        validateBpmnXml(result.xml)
+      } catch (validationErr) {
+        const validationMsg = validationErr instanceof Error ? validationErr.message : 'XML inválido'
+        console.warn(`[generate-bpmn] ${validationMsg} — retrying...`)
+        // Retry with the same call (result will be overwritten)
+        if (process.env.GEMINI_API_KEY) result = await callGemini(message, history, currentXml)
+        else if (process.env.ANTHROPIC_API_KEY) result = await callAnthropic(message, history, currentXml)
+        else if (process.env.OPENAI_API_KEY) result = await callOpenAI(message, history, currentXml)
+        if (result) result.xml = sanitizeBpmnXml(result.xml)
+      }
       return NextResponse.json(result)
     }
 

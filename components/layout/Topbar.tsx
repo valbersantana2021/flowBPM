@@ -4,14 +4,19 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
+import { useTheme } from '@/hooks/useTheme'
 import type { AuthUser } from '@/types'
 
 export function Topbar() {
   const router = useRouter()
   const pathname = usePathname()
   const auth = useAuth()
+  const { resolvedTheme, toggle } = useTheme()
   const [user, setUser] = useState<AuthUser | null>(null)
   const [signingOut, setSigningOut] = useState(false)
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => { setMounted(true) }, [])
 
   useEffect(() => {
     auth.getUser().then(setUser)
@@ -55,6 +60,18 @@ export function Topbar() {
           FlowMind
         </span>
       </Link>
+
+      {/* Theme toggle */}
+      {mounted && (
+        <button
+          onClick={toggle}
+          aria-label="Alternar tema"
+          title={resolvedTheme === 'dark' ? 'Mudar para claro' : 'Mudar para escuro'}
+          style={themeToggleStyle}
+        >
+          {resolvedTheme === 'dark' ? '☀️' : '🌙'}
+        </button>
+      )}
 
       {/* Auth actions */}
       {user ? (
@@ -118,5 +135,19 @@ const ctaLinkStyle: React.CSSProperties = {
   fontWeight: 600,
   textDecoration: 'none',
   borderRadius: '6px',
+  transition: 'background 0.15s',
+}
+
+const themeToggleStyle: React.CSSProperties = {
+  width: '32px',
+  height: '32px',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  background: 'var(--bg3)',
+  border: '1px solid var(--border2)',
+  borderRadius: '8px',
+  cursor: 'pointer',
+  fontSize: '0.9rem',
   transition: 'background 0.15s',
 }
